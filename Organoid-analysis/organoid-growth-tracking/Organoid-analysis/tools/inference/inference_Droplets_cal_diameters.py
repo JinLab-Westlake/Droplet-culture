@@ -1,0 +1,308 @@
+# -*- coding: utf-8 -*-
+
+
+import cv2
+from detectron2.config import get_cfg
+# from detectron2.utils.visualizer import ColorMode
+import torch
+import atexit
+import bisect
+import multiprocessing as mp
+from collections import deque
+
+
+from detectron2.data import MetadataCatalog
+from detectron2.engine.defaults import DefaultPredictor
+from detectron2.utils.video_visualizer import VideoVisualizer
+from detectron2.utils.visualizer import ColorMode, Visualizer
+import os
+
+from detectron2.config import get_cfg
+
+import sys
+sys.path.insert(0, "/storage/jinxinLab/wangyimin/Cell_seg/transfiner-main")
+
+import argparse
+from detectron2.config import get_cfg
+
+from swinb.config import add_swinb_config
+from concurrent.futures import ProcessPoolExecutor
+from functools import partial
+import numpy as np
+
+
+
+def compute_circularity(mask):
+    """
+    mask: torch.Tensor of shape [H, W] or np.ndarray
+    Returns: float (circularity)
+    """
+    mask_np = mask.cpu().numpy().astype(np.uint8)
+    contours, _ = cv2.findContours(mask_np, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return 0.0
+    cnt = max(contours, key=cv2.contourArea)
+    area = cv2.contourArea(cnt)
+    perimeter = cv2.arcLength(cnt, True)
+    if perimeter == 0:
+        return 0.0
+    return (4 * np.pi * area) / (perimeter ** 2)
+
+
+
+def compute_diameter(mask):
+    """
+    计算最大、最小、平均直径（单位：像素）
+    输入：mask 是 torch.Tensor 或 np.ndarray
+    """
+    if isinstance(mask, torch.Tensor):
+        mask_np = mask.cpu().numpy().astype(np.uint8)
+    else:
+        mask_np = mask.astype(np.uint8)
+
+    contours, _ = cv2.findContours(mask_np, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    if not contours:
+        return 0.0, 0.0, 0.0
+
+    cnt = max(contours, key=cv2.contourArea)
+    if len(cnt) < 2:
+        return 0.0, 0.0, 0.0
+
+    points = cnt.squeeze()  # shape: (N, 2)
+
+    from scipy.spatial.distance import cdist
+    dists = cdist(points, points)
+    max_d = np.max(dists)
+    min_d = np.min(dists[np.nonzero(dists)])
+    mean_d = np.mean(dists)
+
+    return max_d, min_d, mean_d
+
+
+
+
+def is_touching_border(mask, border_width=5):
+    """
+    判断 mask 是否触碰图像边界（默认宽度为1像素）
+    mask: np.ndarray of shape (H, W), 0/1 值
+    """
+    h, w = mask.shape
+    top = mask[:border_width, :].any()
+    bottom = mask[-border_width:, :].any()
+    left = mask[:, :border_width].any()
+    right = mask[:, -border_width:].any()
+    return top or bottom or left or right
+
+
+
+class VisualizationDemo:
+    def __init__(self, cfg, instance_mode=ColorMode.IMAGE, parallel=False):
+        """
+        Args:
+            cfg (CfgNode):
+            instance_mode (ColorMode):
+            parallel (bool): whether to run the model in different processes from visualization.
+                Useful since the visualization logic can be slow.
+        """
+        self.metadata = MetadataCatalog.get(
+            cfg.DATASETS.TEST[0] if len(cfg.DATASETS.TEST) else "__unused"
+        )
+        self.cpu_device = torch.device("cpu")
+        self.instance_mode = instance_mode
+
+        self.parallel = parallel
+        if parallel:
+            num_gpu = torch.cuda.device_count()
+            self.predictor = AsyncPredictor(cfg, num_gpus=num_gpu)
+        else:
+            self.predictor = DefaultPredictor(cfg)
+
+    def run_on_image(self, image,confidence_threshold = 0.0, min_size =4500, min_circularity = 0.85):
+        """
+        Args:
+            image (np.ndarray): an image of shape (H, W, C) (in BGR order).
+                This is the format used by OpenCV.
+
+        Returns:
+            predictions (dict): the output of the model.
+            vis_output (VisImage): the visualized image output.
+        """
+        vis_output = None
+        predictions = self.predictor(image)
+        # Convert image from OpenCV BGR format to Matplotlib RGB format.
+        image = image[:, :, ::-1]
+        visualizer = Visualizer(image, self.metadata, instance_mode=self.instance_mode)
+        if "panoptic_seg" in predictions:
+            panoptic_seg, segments_info = predictions["panoptic_seg"]
+            vis_output = visualizer.draw_panoptic_seg_predictions(
+                panoptic_seg.to(self.cpu_device), segments_info
+            )
+        else:
+            if "sem_seg" in predictions:
+                vis_output = visualizer.draw_sem_seg(
+                    predictions["sem_seg"].argmax(dim=0).to(self.cpu_device)
+                )
+            if "instances" in predictions:
+                instances = predictions["instances"].to(self.cpu_device)
+
+                # Step 1: confidence threshold
+                high_confidence_mask = instances.scores > confidence_threshold
+                instances = instances[high_confidence_mask]
+
+                # Step 2: Mask IoU-based suppression
+                def compute_mask_iou(mask1, mask2):
+                    intersection = (mask1 & mask2).sum().item()
+                    union = (mask1 | mask2).sum().item()
+                    return intersection / union if union > 0 else 0
+
+                masks = instances.pred_masks.cpu()  # shape: [N, H, W]
+                scores = instances.scores.cpu().numpy()
+                keep = []
+
+                for i in range(len(masks)):
+                    if i in keep:
+                        continue
+                    discard = False
+                    for j in keep:
+                        iou = compute_mask_iou(masks[i], masks[j])
+                        if iou > 0.2:
+                            if scores[i] <= scores[j]:
+                                discard = True
+                                break
+                    if not discard:
+                        keep.append(i)
+
+                # Apply Mask-IoU-based keep
+                instances = instances[keep]
+
+                # Step 3: min_size filtering based on mask area
+                mask_areas = instances.pred_masks.sum(dim=(1, 2)).cpu().numpy()
+                size_mask = mask_areas >= min_size
+                instances = instances[size_mask]
+                
+                circularity_scores = []
+                for mask in instances.pred_masks:
+                    circ = compute_circularity(mask)
+                    circularity_scores.append(circ)
+
+                circularity_scores = np.array(circularity_scores)
+                circularity_mask = circularity_scores >= min_circularity
+                instances = instances[circularity_mask]
+                
+                keep_non_border = []
+                masks_np = instances.pred_masks.cpu().numpy()
+                for i, m in enumerate(masks_np):
+                    if not is_touching_border(m):
+                        keep_non_border.append(i)
+                instances = instances[keep_non_border]
+                
+                diameters = []
+                circularity_mask = instances.pred_masks.cpu().numpy()
+                for i, m in enumerate(circularity_mask):
+                    if not is_touching_border(m):
+                        d_max, d_min, d_mean = compute_diameter(m)
+                        diameters.append((d_max))
+                        keep_non_border.append(i)
+                        
+                print(diameters)
+
+                # Visualize
+                vis_output = visualizer.draw_instance_predictions(predictions=instances)
+
+            return predictions, vis_output, instances
+
+    
+    
+
+    def _frame_from_video(self, video):
+        while video.isOpened():
+            success, frame = video.read()
+            if success:
+                yield frame
+            else:
+                break
+
+
+
+
+import csv
+
+
+
+
+cfg = get_cfg()
+add_swinb_config(cfg)  # 加载swinb扩展配置
+
+# cfg.merge_from_file("/storage/jinxinLab/wangyimin/Cell_seg/transfiner-main/configs/transfiner/mask_rcnn_swinb_FPN_3x.yaml")
+
+cfg.merge_from_file("/storage/jinxinLab/wangyimin/Cell_seg/transfiner-main/output_swin_B_3x_finetune_droplets/config.yaml")
+cfg.MODEL.WEIGHTS = "/storage/jinxinLab/wangyimin/Cell_seg/transfiner-main/output_swin_B_3x_finetune_droplets/model_0003599.pth"
+cfg.MODEL.DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+cfg.freeze()
+
+# Initialize the tool
+demo = VisualizationDemo(cfg, instance_mode=ColorMode.IMAGE)
+
+# Input and output directories
+input_folder = "/storage/jinxinLab/wangyimin/Cell_seg/transfiner-main/datasets/Figures/Figure_1/Figure1-i/Analysis images"
+output_folder = "/storage/jinxinLab/wangyimin/Cell_seg/transfiner-main/datasets/Figures/Figure_1/Figure1-i/Analysis images/output"
+
+
+# Ensure output folder exists
+os.makedirs(output_folder, exist_ok=True)
+
+
+# 定义保存路径
+count_csv_path = os.path.join(output_folder, "instance_counts_C.csv")
+
+
+# 打开 CSV 文件写入表头
+with open(count_csv_path, mode="w", newline="") as file:
+    writer = csv.writer(file)
+    writer.writerow(["Image Name", "ID", "Area", "Circularity", "d_max", "d_min", "d_mean"])
+
+    
+    
+    # 你的主循环
+    for filename in os.listdir(input_folder):
+        if filename.endswith((".jpg", ".png", ".tif", ".jpeg", ".tiff")) and not filename.startswith('.'):
+            input_path = os.path.join(input_folder, filename)
+            output_path = os.path.join(output_folder, filename)
+
+            image = cv2.imread(input_path)
+            predictions, vis_output, instances = demo.run_on_image(image)
+        
+
+            # instances = predictions["instances"].to("cpu")
+            # high_confidence_mask = instances.scores > 0.0
+            # instances = instances[high_confidence_mask]
+            
+            for i, m in enumerate(instances.pred_masks):
+                if not is_touching_border(m):
+                    d_max, d_min, d_mean = compute_diameter(m)
+                    circularity = compute_circularity(m)
+                    area = m.sum().item()  # torch.Tensor -> int
+                    writer.writerow([filename, i, area, circularity, d_max, d_min, d_mean])
+            
+
+            #  mask 个数
+            instance_count = len(instances)
+            # writer.writerow(['C_'+ filename, instance_count])
+
+            # 只绘制 mask
+            from detectron2.structures import Instances
+            from copy import deepcopy
+            only_mask_instances = Instances(image.shape[:2])
+            only_mask_instances.pred_masks = deepcopy(instances.pred_masks)
+
+            visualizer = Visualizer(image, metadata=demo.metadata, instance_mode=ColorMode.IMAGE)
+            vis_output = visualizer.draw_instance_predictions(only_mask_instances)
+
+            if vis_output:
+                vis_image = vis_output.get_image()[:, :, ::-1]
+                cv2.imwrite(output_path, vis_image)
+                print(f"{filename} - {instance_count} instances - Saved to {output_path}")
+            else:
+                print(f"{filename} - no detections")
+    
