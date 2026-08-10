@@ -156,7 +156,7 @@ To train a Fast R-CNN, the following extra keys are needed:
 In the `list[dict]` that your dataset function returns, the dictionary can also have __arbitrary custom data__.
 This will be useful for a new task that needs extra information not covered
 by the standard dataset dicts. In this case, you need to make sure the downstream code can handle your data
-correctly. Usually this requires writing a new `mapper` for the dataloader (see [Use Custom Dataloaders](./data_loading.md)).
+correctly. Usually this requires writing a new `mapper` for the dataloader (see [Use Custom Dataloaders](data_loading.md)).
 
 When designing a custom format, note that all dicts are stored in memory
 (sometimes serialized and with multiple copies).

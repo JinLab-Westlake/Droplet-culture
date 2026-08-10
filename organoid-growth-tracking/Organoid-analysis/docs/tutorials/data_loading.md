@@ -2,7 +2,7 @@
 # Dataloader
 
 Dataloader is the component that provides data to models.
-A dataloader usually (but not necessarily) takes raw information from [datasets](./datasets.md),
+A dataloader usually (but not necessarily) takes raw information from [datasets](datasets.md),
 and process them into a format needed by the model.
 
 ## How the Existing Dataloader Works
@@ -19,7 +19,7 @@ Here is how `build_detection_{train,test}_loader` work:
    in a lightweight format. These dataset items are not yet ready to be used by the model (e.g., images are
    not loaded into memory, random augmentations have not been applied, etc.).
    Details about the dataset format and dataset registration can be found in
-   [datasets](./datasets.md).
+   [datasets](datasets.md).
 2. Each dict in this list is mapped by a function ("mapper"):
    * Users can customize this mapping function by specifying the "mapper" argument in
         `build_detection_{train,test}_loader`. The default mapper is [DatasetMapper](../modules/data.html#detectron2.data.DatasetMapper).
@@ -78,7 +78,7 @@ dataloader = build_detection_train_loader(cfg, mapper=mapper)
 If you want to change not only the mapper (e.g., in order to implement different sampling or batching logic),
 `build_detection_train_loader` won't work and you will need to write a different data loader.
 The data loader is simply a
-python iterator that produces [the format](./models.md) that the model accepts.
+python iterator that produces [the format](models.md) that the model accepts.
 You can implement it using any tools you like.
 
 No matter what to implement, it's recommended to

@@ -160,7 +160,7 @@ This has the following benefits:
 Recursive instantiation and Python syntax are orthogonal: you can use one without the other.
 But by putting them together, the config file looks a lot like the code that will be executed:
 
-![img](./lazyconfig.jpg)
+![img](lazyconfig.jpg)
 
 However, the config file just defines dictionaries, which can be easily manipulated further
 by composition or overrides.

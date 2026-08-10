@@ -123,7 +123,7 @@ are given as a reference. Note that:
 To help use the Caffe2-format model in python,
 we provide a python wrapper around the converted model, in the
 [Caffe2Model.\_\_call\_\_](../modules/export.html#detectron2.export.Caffe2Model.__call__) method.
-This method has an interface that's identical to the [pytorch versions of models](./models.md),
+This method has an interface that's identical to the [pytorch versions of models](models.md),
 and it internally applies pre/post-processing code to match the formats.
 This wrapper can serve as a reference for how to use Caffe2's python API,
 or for how to implement pre/post-processing in actual deployment.

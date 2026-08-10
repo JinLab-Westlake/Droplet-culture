@@ -151,7 +151,7 @@ Since there are typically hundreds of intermediate tensors, there isn't an API t
 the intermediate result you need.
 You have the following options:
 
-1. Write a (sub)model. Following the [tutorial](./write-models.md), you can
+1. Write a (sub)model. Following the [tutorial](write-models.md), you can
    rewrite a model component (e.g. a head of a model), such that it
    does the same thing as the existing component, but returns the output
    you need.

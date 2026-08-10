@@ -2,7 +2,7 @@
 # Evaluation
 
 Evaluation is a process that takes a number of inputs/outputs pairs and aggregate them.
-You can always [use the model](./models.md) directly and just parse its inputs/outputs manually to perform
+You can always [use the model](models.md) directly and just parse its inputs/outputs manually to perform
 evaluation.
 Alternatively, evaluation is implemented in detectron2 using the [DatasetEvaluator](../modules/evaluation.html#detectron2.evaluation.DatasetEvaluator)
 interface.
@@ -60,7 +60,7 @@ This function also provides accurate speed benchmarks for the given model and da
 Many evaluators in detectron2 are made for specific datasets,
 in order to obtain scores using each dataset's official API.
 In addition to that, two evaluators are able to evaluate any generic dataset
-that follows detectron2's [standard dataset format](./datasets.md), so they
+that follows detectron2's [standard dataset format](datasets.md), so they
 can be used to evaluate custom datasets:
 
 * [COCOEvaluator](../modules/evaluation.html#detectron2.evaluation.COCOEvaluator) is able to evaluate AP (Average Precision) for box detection,

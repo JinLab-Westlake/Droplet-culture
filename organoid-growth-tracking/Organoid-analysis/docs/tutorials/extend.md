@@ -132,10 +132,10 @@ should suffice. If you need to extend detectron2 to your own needs,
 see the following tutorials for more details:
 
 * Detectron2 includes a few standard datasets. To use custom ones, see
-  [Use Custom Datasets](./datasets.md).
+  [Use Custom Datasets](datasets.md).
 * Detectron2 contains the standard logic that creates a data loader for training/testing from a
-  dataset, but you can write your own as well. See [Use Custom Data Loaders](./data_loading.md).
+  dataset, but you can write your own as well. See [Use Custom Data Loaders](data_loading.md).
 * Detectron2 implements many standard detection models, and provide ways for you
-  to overwrite their behaviors. See [Use Models](./models.md) and [Write Models](./write-models.md).
+  to overwrite their behaviors. See [Use Models](models.md) and [Write Models](write-models.md).
 * Detectron2 provides a default training loop that is good for common training tasks.
-  You can customize it with hooks, or write your own loop instead. See [training](./training.md).
+  You can customize it with hooks, or write your own loop instead. See [training](training.md).
