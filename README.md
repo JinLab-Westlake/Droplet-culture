@@ -6,7 +6,7 @@
   <strong>Official implementation of “Droplet culture of tumour organoids”</strong>
 </p>
 
----
+
 <h2>Overview</h2>
 <p>The pipeline supports:</p>
 
@@ -16,7 +16,7 @@
 <li>Organoid time course (Viability changing)</li>
 </ul>
 
----
+
 
 <h3>Oragnoid growth tracing</h3>
 
@@ -25,7 +25,7 @@
 </p>
 
 
----
+
 <h2>Installation</h2>
 
 <p>
