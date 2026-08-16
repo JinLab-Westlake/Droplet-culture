@@ -95,8 +95,8 @@ bash install.sh
 
 <h3>3. Clone this repository</h3>
 
-<pre><code>git clone https://github.com/JinLab-Westlake/Droplet-culture.git;
-cd Droplet-culture;
+<pre><code>git clone https://github.com/JinLab-Westlake/Droplet-culture.git
+cd Droplet-culture
 </code></pre>
 
 <p>
@@ -104,6 +104,6 @@ cd Droplet-culture;
   <code>morphi</code> environment is activated, the code can be run directly.
 </p>
 
-<pre><code>python &lt;your_script.py&gt;
+<pre><code>python &lt;script.py&gt;
 </code></pre>
 
