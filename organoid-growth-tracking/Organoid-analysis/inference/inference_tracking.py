@@ -209,22 +209,6 @@ def group_boxes_from_left_top(boxes, patch_size = 224, image_size = 1980):
 
 
 
-cfg = get_cfg()
-add_swinb_config(cfg) 
-
-cfg.merge_from_file("/storage/jinxinLab/wangyimin/Cell_seg/transfiner-main/output_swin_B_3x_finetune_organoids_AO/config.yaml")
-cfg.MODEL.WEIGHTS = "/storage/jinxinLab/wangyimin/Cell_seg/transfiner-main/output_swin_B_3x_finetune_organoids_AO/model_0003849.pth"
-
-
-cfg.MODEL.DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-
-cfg.freeze()
-
-# Initialize the tool
-demo = VisualizationDemo(cfg, instance_mode=ColorMode.IMAGE)
-
-
-
 
 # ==== tracking ====
 def collect_frames_by_prefix(input_root, prefix):
@@ -719,6 +703,22 @@ def run_tracking_for_prefix(input_root, demo, excel_out_path, labeled_out_root, 
     df.sort_values(by=["key", "frame_idx", "object_id"], inplace=True)
     df.to_excel(excel_out_path, index=False)
     print(f"Excel saved to: {excel_out_path}")
+
+
+
+cfg = get_cfg()
+add_swinb_config(cfg)
+
+cfg.merge_from_file("/storage/jinxinLab/wangyimin/Cell_seg/transfiner-main/output_swin_B_3x_finetune_organoids_AO/config.yaml")
+cfg.MODEL.WEIGHTS = "/storage/jinxinLab/wangyimin/Cell_seg/transfiner-main/output_swin_B_3x_finetune_organoids_AO/model_0003849.pth"
+
+
+cfg.MODEL.DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+cfg.freeze()
+
+# Initialize the tool
+demo = VisualizationDemo(cfg, instance_mode=ColorMode.IMAGE)
 
 
 

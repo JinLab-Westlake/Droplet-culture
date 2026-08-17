@@ -100,10 +100,68 @@ cd Droplet-culture
 </code></pre>
 
 <p>
-  No additional dependencies are required. Once the
-  <code>morphi</code> environment is activated, the code can be run directly.
+The directory will look like this:
 </p>
 
-<pre><code>python &lt;script.py&gt;
-</code></pre>
+<pre>
+Morphi-models/
+    ├── Droplet-culture/
+    │    ├── Drop-diameter-pred/
+    │    ├── Organoid-growth-tracking/
+    │    └── Organoid-time_course/
+    └── Morphi
+         ├── Z-stack_projection/
+         ├── Edge-detection/
+         ├── DoANet/
+         └── Instance-segment/
+</pre>
 
+
+<h2>Usage</h2>
+<h4>1. Drop diameter prediction</h4>
+<p align="left">
+  <img src="docs/drop_pred.png" alt="Morphi demo" width="500">
+</p>
+<h4>2. Oragnoid growth tracing</h4>
+<pre>
+Droplet-culture/
+└── Organoid-time_course/
+    ├── organoid-growth-tracking/   # acquire parent-child relationship for each frame
+    │    └── Organoid-analysis/
+    │        ├── preprocessing/
+    │        └── inference/
+    └── tracking_object             # parent-child relationship -> object-level trace  
+
+</pre>
+
+<h4>3. Organoid time course </h4>
+
+Place the example image in the input path:
+<pre>
+Droplet-culture/
+├── Organoid-time_course/
+│   └── time-series_analysis.sh
+└── docs/
+    └── time-course/
+        └── input/                  # input image path
+            ├── WM29_P1_Day1.tiff
+            ├── WM29_P1_Day2.tiff
+            ├── WM29_P1_Day2.tiff
+            └── ....
+</pre>
+
+Run directly with the following script:
+<pre>
+<code>cd Organoid-time_course
+sh time-series_analysis.sh </code>
+</pre>
+
+
+
+<h2>Citation</h2>
+
+<pre><code>&lt;INSERT CITATION AFTER PUBLICATION&gt;</code></pre>
+
+<h2>License</h2>
+
+<p>&lt;INSERT LICENSE&gt;</p>

@@ -204,20 +204,6 @@ def group_boxes_from_left_top(boxes, patch_size = 224, image_size = 1980):
 
 
 
-cfg = get_cfg()
-add_swinb_config(cfg) 
-
-cfg.merge_from_file("/storage/jinxinLab/wangyimin/Cell_seg/transfiner-main/output_swin_B_3x_finetune_organoids_AO/config.yaml")
-cfg.MODEL.WEIGHTS = "/storage/jinxinLab/wangyimin/Cell_seg/transfiner-main/output_swin_B_3x_finetune_organoids_AO/model_0003849.pth"
-
-
-cfg.MODEL.DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-
-cfg.freeze()
-
-# Initialize the tool
-demo = VisualizationDemo(cfg, instance_mode=ColorMode.IMAGE)
-
 
 
 
@@ -711,15 +697,20 @@ def run_tracking_for_prefix(input_root, demo, excel_out_path, labeled_out_root, 
 
 
 
+cfg = get_cfg()
+add_swinb_config(cfg)
 
-# if __name__ == "__main__":
-#     input_folder = "/storage/jinxinLab/wangyimin/Cell_seg/Datasets/CRISPR_validition/VID1495_G3_1/darker"
-#     excel_out = "/storage/jinxinLab/wangyimin/Cell_seg/Datasets/CRISPR_validition/VID1495_G3_1/darker/tracking_result_VID1495_G3_1.xlsx"
-#     labeled_out_root = "/storage/jinxinLab/wangyimin/Cell_seg/Datasets/CRISPR_validition/VID1495_G3_1/darker/output"
+cfg.merge_from_file("/storage/jinxinLab/wangyimin/Cell_seg/transfiner-main/output_swin_B_3x_finetune_organoids_AO/config.yaml")
+cfg.MODEL.WEIGHTS = "/storage/jinxinLab/wangyimin/Cell_seg/transfiner-main/output_swin_B_3x_finetune_organoids_AO/model_0003849.pth"
 
-#     prefix = "VID1495_G3_1"
 
-#     run_tracking_for_prefix(input_folder, demo, excel_out, labeled_out_root, prefix)
+cfg.MODEL.DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+cfg.freeze()
+
+# Initialize the tool
+demo = VisualizationDemo(cfg, instance_mode=ColorMode.IMAGE)
+
 
 
 if __name__ == "__main__":
