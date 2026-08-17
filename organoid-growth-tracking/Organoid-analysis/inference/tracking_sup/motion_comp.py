@@ -9,7 +9,7 @@ def _to_gray_float(img):
     return img / mx
 
 def estimate_motion_ecc(prev_img, curr_img,
-                        motion="translation",  # 建议先用 translation（你是几像素晃动）
+                        motion="translation",
                         n_iters=200,
                         eps=1e-6,
                         gauss_ksize=5):

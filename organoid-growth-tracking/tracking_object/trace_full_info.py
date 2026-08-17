@@ -11,9 +11,8 @@ import numpy as np
 import pandas as pd
 
 
-# -------------------------
+
 # Utils
-# -------------------------
 def safe_float(x, default=np.nan) -> float:
     try:
         if pd.isna(x):
@@ -34,12 +33,12 @@ def safe_int(x, default=None) -> Optional[int]:
 
 def parse_parent_ids(val) -> List[int]:
     """
-    parent_ids 可能是：
-      - FALSE / TRUE / 空
-      - "48,51"
-      - "5"
-      - 数字/浮点(5, 5.0)
-    统一转成 List[int]
+    parent_ids could be:
+    · FALSE/TRUE/empty
+    · "48,51"
+    · "5"
+    · Numbers/floats (5, 5.0)
+    Convert uniformly to List[int]
     """
     if val is None or pd.isna(val):
         return []
@@ -59,16 +58,15 @@ def parse_parent_ids(val) -> List[int]:
     return out
 
 
-# -------------------------
+
 # Core tracing
-# -------------------------
 @dataclass
 class TraceRow:
     frame_idx: int
     object_id: int
     mask_area: float
     timestamp: Optional[str] = None
-    parent_ids_raw: Optional[str] = None  # 便于调试/记录
+    parent_ids_raw: Optional[str] = None
 
 
 def build_frame_index(df: pd.DataFrame, frame_col: str, obj_col: str) -> Dict[int, Dict[int, List[int]]]:
@@ -86,7 +84,7 @@ def build_frame_index(df: pd.DataFrame, frame_col: str, obj_col: str) -> Dict[in
 
 
 def pick_best_row(df: pd.DataFrame, row_indices: List[int], area_col: str) -> int:
-    """同一候选多行，选 mask_area 最大的行"""
+    """ Select the row with the largest mask_area across multiple candidate rows. """
     if len(row_indices) == 1:
         return row_indices[0]
     areas = []
@@ -105,11 +103,11 @@ def find_parent_row_with_skip(
     max_skip: int,
 ) -> Optional[Tuple[int, int, int]]:
     """
-    在 cur_frame-1 ... cur_frame-max_skip 里找 parent。
-    返回 (parent_frame, parent_row_index, chosen_parent_id)
-    规则：
-      - 从近到远扫描帧
-      - 同一帧内 parent_ids 多个：选 mask_area 最大的那个 parent 行
+    In cur_frame-1... cur_frame-max_skip looks for parent.
+    Return (parent_frame, parent_row_index, chosen_parent_id)
+    Rules:
+    1. Scan frames from near to far
+    2. Multiple parent_ids in the same frame: select the parent with the largest mask_area
     """
     for pf in range(cur_frame - 1, cur_frame - max_skip - 1, -1):
         if pf not in frame_map:
@@ -151,10 +149,10 @@ def trace_back_one(
     max_steps: int = 100000,
 ) -> Tuple[List[TraceRow], List[Tuple[int, int, List[int]]]]:
     """
-    从 (start_frame, start_oid) 开始向前追溯主链。
-    返回：
-      - trace: earliest->latest
-      - merges: List[(frame_idx, object_id, parent_ids_list)]  记录发生“合并”的节点（parent_ids>1）
+    Trace back to the main chain starting at (start_frame, start_oid).
+    Returns:
+    1. trace: earliest->latest
+    2. merges: List[(frame_idx, object_id, parent_ids_list)] records the node on which the "merge" occurred (parent_ids>1)
     """
     rows = frame_map.get(start_frame, {}).get(start_oid, [])
     if not rows:
@@ -225,9 +223,9 @@ def trace_back_from_node(
     visited: Optional[Set[Tuple[int, int]]] = None,
 ) -> List[TraceRow]:
     """
-    给“合并前的某个 parent 目标”追一条链（不展开多父节点，仍用主链规则：多父取最大面积）。
-    visited 用于防循环。
-    返回 earliest->latest（相对这个parent分支）
+    Trace a chain for "one parent target before merge" .
+    visited is used to prevent loops.
+    Returns earliest->latest (relative to the parent branch)
     """
     if visited is None:
         visited = set()
@@ -285,9 +283,7 @@ def trace_back_from_node(
     return list(reversed(trace_latest_to_earliest))
 
 
-# -------------------------
 # Export helpers
-# -------------------------
 def traces_to_long_df(traces: List[List[TraceRow]]) -> pd.DataFrame:
     rows = []
     for k, tr in enumerate(traces, start=1):
@@ -322,18 +318,15 @@ def ensure_outdir(path: str) -> None:
     os.makedirs(path, exist_ok=True)
 
 
-# -------------------------
 # IO
-# -------------------------
 def load_tracking_excel(path: str, sheet: Optional[str] = None) -> pd.DataFrame:
     df = pd.read_excel(path, sheet_name=sheet if sheet else 0, engine=None)
     df.columns = [str(c).strip() for c in df.columns]
     return df
 
 
-# -------------------------
+
 # Merge branches extraction
-# -------------------------
 def build_merge_branches(
     df: pd.DataFrame,
     frame_map: Dict[int, Dict[int, List[int]]],
@@ -348,18 +341,17 @@ def build_merge_branches(
     max_steps: int,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
-    对某个 idx 的所有 merge 节点：
-      - merge_id = 1..M
-      - 对每个 parent_id，在 (merge_frame-1..merge_frame-max_skip) 找到该 parent 的行（同一帧多行取最大面积）
-      - 从该 parent 的 (parent_frame, parent_id) 向前追一条分支轨迹（多父仍取最大面积主链）
-    输出：
-      - long: columns=[idx, merge_id, branch_parent_id, frame_idx, object_id, mask_area, timestamp]
-      - matrix: frame_idx 行，列为 f"idx{idx}_m{merge_id}_p{parent_id}"
+    For all merge nodes of an idx:
+        merge_id = 1.. M
+        For each parent_id, the parent_id in (merge_frame-1.. merge_frame-max_skip) Finds the parent's row (maximum size of multiple rows in the same frame)
+        Trace one branch forward from the parent's (parent_frame, parent_id) (multiple parents still take the largest main chain)
+    Output:
+        long: columns=[idx, merge_id, branch_parent_id, frame_idx, object_id, mask_area, timestamp]
+        matrix: frame_idx row, column f"idx{idx}_m{merge_id}_p{parent_id}"
     """
     long_rows = []
 
     for merge_id, (merge_frame, merge_oid, parent_ids) in enumerate(merges, start=1):
-        # 为每个 parent_id 寻找它实际出现在哪个 parent_frame（允许 skip）
         for pid in parent_ids:
             found = find_parent_row_with_skip(
                 df=df,
@@ -372,7 +364,7 @@ def build_merge_branches(
             if found is None:
                 continue
             pframe, prow, _ = found
-            # 从该 parent 节点向前追
+            # Trace forward from that parent node
             branch = trace_back_from_node(
                 df=df,
                 frame_map=frame_map,
@@ -420,9 +412,8 @@ def build_merge_branches(
     return df_long, df_mat
 
 
-# -------------------------
+
 # Summary
-# -------------------------
 def build_summary_df(traces: List[List[TraceRow]], merges_list: List[List[Tuple[int, int, List[int]]]]) -> pd.DataFrame:
     rows = []
     for i, (tr, merges) in enumerate(zip(traces, merges_list), start=1):
@@ -447,9 +438,7 @@ def build_summary_df(traces: List[List[TraceRow]], merges_list: List[List[Tuple[
     return pd.DataFrame(rows)
 
 
-# -------------------------
 # CLI
-# -------------------------
 def parse_args():
     ap = argparse.ArgumentParser(description="Trace tracking targets backward using parent_ids with frame skipping.")
     ap.add_argument("-i", "--input", required=True, help="Input tracking Excel file (.xlsx).")
@@ -480,7 +469,7 @@ def main():
 
     df = load_tracking_excel(args.input, sheet=args.sheet)
 
-    # 基础检查
+    # check
     for c in [args.frame_col, args.obj_col, args.area_col, args.parent_col]:
         if c not in df.columns:
             raise RuntimeError(f"Missing required column: {c}. Existing columns: {list(df.columns)}")
@@ -537,7 +526,7 @@ def main():
             except Exception:
                 continue
 
-    # 1) 主链输出（原有）
+    # output
     df_long = traces_to_long_df(traces)
     out_long = os.path.join(args.outdir, "traces_long.xlsx")
     df_long.to_excel(out_long, index=False)
@@ -546,12 +535,11 @@ def main():
     out_mat = os.path.join(args.outdir, "traces_area_matrix.xlsx")
     df_mat.to_excel(out_mat, index=False)
 
-    # 2) 汇总输出：每个 idx 的首尾/长度/合并次数
+    # summary output
     df_sum = build_summary_df(traces, merges_list)
     out_sum = os.path.join(args.outdir, "objects_summary.xlsx")
     df_sum.to_excel(out_sum, index=False)
 
-    # 3) 合并分支面积输出（额外一个 Excel，含两张表）
     if args.emit_merge_excel:
         all_merge_long = []
         all_merge_mat_parts = []
@@ -585,7 +573,6 @@ def main():
                 pd.DataFrame().to_excel(w, sheet_name="merge_branches_long", index=False)
 
             if all_merge_mat_parts:
-                # 不同 idx/merge 的列合并，frame_idx 对齐
                 merged_mat = pd.concat(all_merge_mat_parts, axis=1).sort_index()
                 merged_mat.insert(0, "frame_idx", merged_mat.index.astype(int))
                 merged_mat.reset_index(drop=True).to_excel(w, sheet_name="merge_branches_matrix", index=False)

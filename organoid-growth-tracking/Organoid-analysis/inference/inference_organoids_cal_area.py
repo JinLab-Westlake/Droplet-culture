@@ -1,33 +1,26 @@
 # -*- coding: utf-8 -*-
 
-
+from detectron2.structures import Instances
+from copy import deepcopy
 import cv2
-from detectron2.config import get_cfg
-# from detectron2.utils.visualizer import ColorMode
 import torch
-import atexit
-import bisect
-import multiprocessing as mp
-from collections import deque
-
-
 from detectron2.data import MetadataCatalog
 from detectron2.engine.defaults import DefaultPredictor
-from detectron2.utils.video_visualizer import VideoVisualizer
 from detectron2.utils.visualizer import ColorMode, Visualizer
 import os
-
-from detectron2.config import get_cfg
-
 import sys
-sys.path.insert(0, "/storage/jinxinLab/wangyimin/Cell_seg/transfiner-main")
-
+from pathlib import Path
+# Morphi-models/Morphi/Instance-segment
+INSTANCE_SEGMENT_ROOT = (
+    Path(__file__).resolve().parents[3]
+    / "Morphi"
+    / "Instance-segment"
+)
+sys.path.insert(0, str(INSTANCE_SEGMENT_ROOT))
 import argparse
 from detectron2.config import get_cfg
-
+from scipy.spatial.distance import cdist
 from swinb.config import add_swinb_config
-from concurrent.futures import ProcessPoolExecutor
-from functools import partial
 import numpy as np
 
 
@@ -52,8 +45,8 @@ def compute_circularity(mask):
 
 def compute_diameter(mask):
     """
-    计算最大、最小、平均直径（单位：像素）
-    输入：mask 是 torch.Tensor 或 np.ndarray
+    Calculate the maximum, minimum, and average diameter (in pixels)
+    Input: mask is either torch.Tensor or np.ndarray
     """
     if isinstance(mask, torch.Tensor):
         mask_np = mask.cpu().numpy().astype(np.uint8)
@@ -70,7 +63,7 @@ def compute_diameter(mask):
 
     points = cnt.squeeze()  # shape: (N, 2)
 
-    from scipy.spatial.distance import cdist
+
     dists = cdist(points, points)
     max_d = np.max(dists)
     min_d = np.min(dists[np.nonzero(dists)])
@@ -83,8 +76,8 @@ def compute_diameter(mask):
 
 def is_touching_border(mask, border_width=1):
     """
-    判断 mask 是否触碰图像边界（默认宽度为1像素）
-    mask: np.ndarray of shape (H, W), 0/1 值
+    Determining if the mask is touching the edge of the image (default width is 1 pixel)
+    mask: np.ndarray of shape (H, W), 0/1
     """
     h, w = mask.shape
     top = mask[:border_width, :].any()
@@ -145,11 +138,11 @@ class VisualizationDemo:
             if "instances" in predictions:
                 instances = predictions["instances"].to(self.cpu_device)
 
-                # Step 1: confidence threshold
+                # confidence threshold
                 high_confidence_mask = instances.scores < confidence_threshold
                 instances = instances[high_confidence_mask]
 
-                # Step 2: Mask IoU-based suppression
+                # Mask IoU-based suppression
                 def compute_mask_iou(mask1, mask2):
                     intersection = (mask1 & mask2).sum().item()
                     union = (mask1 | mask2).sum().item()
@@ -175,7 +168,7 @@ class VisualizationDemo:
                 # Apply Mask-IoU-based keep
                 instances = instances[keep]
 
-                # Step 3: min_size filtering based on mask area
+                # min_size filtering based on mask area
                 mask_areas = instances.pred_masks.sum(dim=(1, 2)).cpu().numpy()
                 size_mask = mask_areas >= min_size
                 instances = instances[size_mask]
@@ -231,9 +224,8 @@ import csv
 
 
 cfg = get_cfg()
-add_swinb_config(cfg)  # 加载swinb扩展配置
+add_swinb_config(cfg)  # load swinb
 
-# cfg.merge_from_file("/storage/jinxinLab/wangyimin/Cell_seg/transfiner-main/configs/transfiner/mask_rcnn_swinb_FPN_3x.yaml")
 
 cfg.merge_from_file("/storage/jinxinLab/wangyimin/Cell_seg/transfiner-main/output_swin_B_3x_finetune_organoids_AO/config.yaml")
 cfg.MODEL.WEIGHTS = "/storage/jinxinLab/wangyimin/Cell_seg/transfiner-main/output_swin_B_3x_finetune_organoids_AO/model_0003049.pth"
@@ -253,18 +245,18 @@ output_folder = "/storage/jinxinLab/wangyimin/Cell_seg/transfiner-main/datasets/
 os.makedirs(output_folder, exist_ok=True)
 
 
-# 定义保存路径
+# csv path
 count_csv_path = os.path.join(output_folder, "instance_counts_C.csv")
 
 
-# 打开 CSV 文件写入表头
+# write into csv
 with open(count_csv_path, mode="w", newline="") as file:
     writer = csv.writer(file)
     writer.writerow(["Image Name", "ID", "Area", "Circularity", "d_max", "d_min", "d_mean"])
 
     
     
-    # 你的主循环
+    # main
     for filename in os.listdir(input_folder):
         if filename.endswith((".jpg", ".png", ".tif", ".jpeg", ".tiff")) and not filename.startswith('.'):
             input_path = os.path.join(input_folder, filename)
@@ -286,13 +278,11 @@ with open(count_csv_path, mode="w", newline="") as file:
                     writer.writerow([filename, i, area, circularity, d_max, d_min, d_mean])
             
 
-            #  mask 个数
+            #  the number of mask
             instance_count = len(instances)
             # writer.writerow(['C_'+ filename, instance_count])
 
-            # 只绘制 mask
-            from detectron2.structures import Instances
-            from copy import deepcopy
+            # only drawing mask
             only_mask_instances = Instances(image.shape[:2])
             only_mask_instances.pred_masks = deepcopy(instances.pred_masks)
 

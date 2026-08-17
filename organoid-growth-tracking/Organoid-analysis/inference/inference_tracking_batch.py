@@ -1,42 +1,25 @@
 # -*- coding: utf-8 -*-
 
 import cv2
-from detectron2.config import get_cfg
-# from detectron2.utils.visualizer import ColorMode
 import torch
-import atexit
-import bisect
-import multiprocessing as mp
-from collections import deque
-
-
 from detectron2.data import MetadataCatalog
 from detectron2.engine.defaults import DefaultPredictor
-from detectron2.utils.video_visualizer import VideoVisualizer
 from detectron2.utils.visualizer import ColorMode, Visualizer
-import os
-
-from detectron2.config import get_cfg
-
 import sys
-sys.path.insert(0, "/storage/jinxinLab/wangyimin/Cell_seg/transfiner-main")
-
-import argparse
+from pathlib import Path
+# Morphi-models/Morphi/Instance-segment
+INSTANCE_SEGMENT_ROOT = (
+    Path(__file__).resolve().parents[3]
+    / "Morphi"
+    / "Instance-segment"
+)
+sys.path.insert(0, str(INSTANCE_SEGMENT_ROOT))
 from detectron2.config import get_cfg
-
 from swinb.config import add_swinb_config
-from concurrent.futures import ProcessPoolExecutor
-from functools import partial
 import numpy as np
-
 import re
 import pandas as pd
 from datetime import datetime
-
-import json
-from pycocotools import mask as mask_utils
-
-
 
 
 
@@ -89,11 +72,11 @@ class VisualizationDemo:
             if "instances" in predictions:
                 instances = predictions["instances"].to(self.cpu_device)
 
-                # Step 1: confidence threshold
+                # confidence threshold
                 high_confidence_mask = instances.scores > confidence_threshold
                 instances = instances[high_confidence_mask]
 
-                # Step 2: IoU-based suppression
+                # IoU-based suppression
                 def compute_iou(box1, box2):
                     x1, y1, x2, y2 = box1
                     x3, y3, x4, y4 = box2
@@ -125,17 +108,13 @@ class VisualizationDemo:
                 # Apply IoU-based keep
                 instances = instances[keep]
 
-                # # Step 3: min_size filtering (based on width/height or area)
-                # boxes = instances.pred_boxes.tensor.cpu().numpy()
-                # sizes = (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1])
-                # size_mask = sizes >= min_size
-                # instances = instances[size_mask]
-                # Step 3: min_size filtering (prefer mask area)
+
+                # min_size filtering (prefer mask area)
                 if min_size > 0:
                     if instances.has("pred_masks"):
                         # pred_masks: (N, H, W) bool/uint8 tensor
                         masks = instances.pred_masks  # torch.Tensor
-                        # mask面积=mask为True的像素数
+                        # mask area = Number of pixels where mask is True
                         mask_areas = masks.flatten(1).sum(dim=1)  # (N,)
                         size_mask = mask_areas >= min_size
                         instances = instances[size_mask]
@@ -149,11 +128,10 @@ class VisualizationDemo:
                 
                 
 
-                # ==== 用自己的 id 替换类别，从 0 开始 ====
+                # Replace the category with its own id, starting at 0
                 num_inst = len(instances)
                 if num_inst > 0:
                     custom_ids = torch.arange(num_inst, dtype=torch.int64)
-                    # 用自定义 id 覆盖原来的类别 id
                     instances.pred_classes = custom_ids
                 # ======================================
 
@@ -229,14 +207,10 @@ def group_boxes_from_left_top(boxes, patch_size = 224, image_size = 1980):
 cfg = get_cfg()
 add_swinb_config(cfg) 
 
-# cfg.merge_from_file("/storage/jinxinLab/wangyimin/Cell_seg/transfiner-main/configs/transfiner/mask_rcnn_swinb_FPN_3x.yaml")
-
 cfg.merge_from_file("/storage/jinxinLab/wangyimin/Cell_seg/transfiner-main/output_swin_B_3x_finetune_organoids_AO/config.yaml")
 cfg.MODEL.WEIGHTS = "/storage/jinxinLab/wangyimin/Cell_seg/transfiner-main/output_swin_B_3x_finetune_organoids_AO/model_0003849.pth"
 
 
-# cfg.merge_from_file("/storage/jinxinLab/wangyimin/Cell_seg/transfiner-main/configs/transfiner/mask_rcnn_swinb_FPN_3x.yaml")
-# cfg.MODEL.WEIGHTS = "/storage/jinxinLab/wangyimin/Cell_seg/transfiner-main/output_swin_B_3x/model_0010199.pth"
 cfg.MODEL.DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 cfg.freeze()
@@ -250,12 +224,12 @@ demo = VisualizationDemo(cfg, instance_mode=ColorMode.IMAGE)
 # ==== tracking ====
 def collect_frames_by_prefix(input_root, prefix):
     """
-    在 input_root 下，收集所有以 prefix 开头的图像，
-    并根据文件名里的时间字段排序。
+    Under input_root, collect all images that start with prefix,
+    And sort by the time field in the filename.
 
-    例如:
+    For example:
       prefix = "VID1513_A1_1"
-      文件: VID1513_A1_1_2025y11m19d_08h20m.jpg
+      file: VID1513_A1_1_2025y11m19d_08h20m.jpg
     """
     frames = []  # list of (t, fpath, fname)
 
@@ -265,11 +239,11 @@ def collect_frames_by_prefix(input_root, prefix):
         if fname.startswith("."):
             continue
 
-        # 必须以 prefix_ 开头
+        # must start from prefix_
         if not fname.startswith(prefix + "_"):
             continue
 
-        # 解析时间
+        # parsing time
         _, t = parse_key_and_time(fname)
         if t is None:
             continue
@@ -277,18 +251,17 @@ def collect_frames_by_prefix(input_root, prefix):
         fpath = os.path.join(input_root, fname)
         frames.append((t, fpath, fname))
 
-    # 按时间排序
+    # Sort by time
     frames.sort(key=lambda x: x[0])
     return frames
 
 
 
-# ===================== 文件名解析 =====================
-
+# Filename resolution
 def parse_key_and_time(filename):
     """
-    输入: VID1513_A1_1_2025y11m19d_08h20m.jpg
-    输出:
+    Input: VID1513_A1_1_2025y11m19d_08h20m.jpg
+    Output:
         key = "VID1513_A1_1"
         t   = datetime(2025, 11, 19, 8, 20)
     """
@@ -299,10 +272,9 @@ def parse_key_and_time(filename):
 
     key = "_".join(parts[0:3])  # VID1513_A1_1
 
-    # 剩下部分合起来: 2025y11m19d_08h20m
     time_str = "_".join(parts[3:])  # 2025y11m19d_08h20m
 
-    # 用正则解析
+    # Using regular parsing
     m = re.match(r"(\d{4})y(\d{2})m(\d{2})d_(\d{2})h(\d{2})m", time_str)
     if not m:
         return key, None
@@ -310,12 +282,33 @@ def parse_key_and_time(filename):
     t = datetime(year, month, day, hour, minute)
     return key, t
 
-# ===================== 余弦距离 =====================
+
+def collect_all_prefixes(input_root):
+    """
+    Scan all image files under input_root, automatically parse out all prefixes (keys), and return a sorted list.
+    Only count files with successfully parsed timestamps (make sure it's your type of sequence frame).
+    """
+    keys = set()
+    for fname in os.listdir(input_root):
+        if fname.startswith("."):
+            continue
+        if not fname.lower().endswith((".jpg", ".jpeg", ".png", ".tif", ".tiff")):
+            continue
+
+        key, t = parse_key_and_time(fname)
+        if key is not None and t is not None:
+            keys.add(key)
+
+    return sorted(keys)
+
+
+
+# cousin distance
 
 def cosine_distance(f1, f2):
     """
-    f1, f2: 1D 向量 (numpy array)
-    返回: 1 - cos_sim，范围 [0, 2]
+    f1, f2: 1D vectors (numpy array)
+    Return: 1-cos_sim, range [0, 2]
     """
     denom = (np.linalg.norm(f1) * np.linalg.norm(f2))
     if denom == 0:
@@ -325,8 +318,8 @@ def cosine_distance(f1, f2):
 
 def get_instance_features(instances, image_shape):
     """
-    给当前帧的所有 instances 生成特征向量
-    只用中心点位置，不要面积:
+    Generate feature vectors for all instances of the current frame
+    Only the center position, not the area:
         feature = [cx_norm, cy_norm]
     """
     h, w = image_shape[:2]
@@ -348,23 +341,23 @@ def euclidean_distance(p1, p2):
 
 def update_tracks(prev_tracks, det_feats, dist_thresh=0.05, max_missed=0):
     """
-    prev_tracks: 轨迹列表，每个元素:
+    prev_tracks: List of trajectories, each element:
         {
             "id": int,
             "feat": np.array([cx_norm, cy_norm]),
             "missed": int,
             "active": bool
         }
-    det_feats: 当前帧检测特征 [N, 2]，为归一化中心坐标
-    dist_thresh: 欧式距离阈值（0~sqrt(2），这里从 0.15 先试起）
-    返回:
-        assignments: 长度 N 的列表，每个元素:
+    det_feats: The detection feature [N, 2] of the current frame is the normalized center coordinate
+    dist_thresh: Euclidean distance threshold ,here is 0.05)
+    :return:
+        assignments: A list of length N, with each element:
             {
-              "track_id": 轨迹ID或None,
+              "track_id": Trajectory ID or None,
               "is_new": bool,
-              "children": [parent_ids...]  # 多父时使用
+              "children": [parent_ids...]  # Used with multiple parents
             }
-        prev_tracks: 更新 missed/active 后的轨迹列表
+        prev_tracks: Update the list of trajectories after missed/active
     """
     num_det = det_feats.shape[0]
     assignments = [
@@ -372,7 +365,7 @@ def update_tracks(prev_tracks, det_feats, dist_thresh=0.05, max_missed=0):
         for _ in range(num_det)
     ]
 
-    # ===== 情况 0：当前帧没有检测 =====
+    # 1. When there is no detection in the current frame
     if num_det == 0:
         for tr in prev_tracks:
             if tr.get("active", True):
@@ -381,28 +374,29 @@ def update_tracks(prev_tracks, det_feats, dist_thresh=0.05, max_missed=0):
                     tr["active"] = False
         return assignments, prev_tracks
 
-    # ===== 情况 1：还没有任何历史轨迹 =====
+    # 2. When there is no historical track yet
     if len(prev_tracks) == 0:
         for i in range(num_det):
-            assignments[i]["is_new"] = True   # 由外层创建新轨迹
+            assignments[i]["is_new"] = True   # New trajectories are created by the outer layer
         return assignments, prev_tracks
 
-    # ===== 情况 2：正常匹配 =====
+    # 3. Normal match
     parents_by_det = {i: [] for i in range(num_det)}
 
-    # 只用 active 轨迹参与匹配
+    # Only active trajectories are involved in matching
     for tr in prev_tracks:
         if not tr.get("active", True):
             continue
         tr_id = tr["id"]
         tr_feat = tr["feat"]  # [2]
 
-        # 计算 tr_feat 到所有 det_feat 的距离，向量化避免写 for i
+        # The distance of tr_feat to all det_feat is calculated,
+        # and the vectorization avoids writing for i
         dists = np.linalg.norm(det_feats - tr_feat[None, :], axis=1)  # [N]
         min_idx = int(np.argmin(dists))
         min_dist = float(dists[min_idx])
 
-        # 在阈值之内，就把这个 track 作为该 detection 的一个 parent
+        # Within the threshold, the track is used as a parent for the detection
         if min_dist < dist_thresh:
             parents_by_det[min_idx].append(tr_id)
 
@@ -412,24 +406,24 @@ def update_tracks(prev_tracks, det_feats, dist_thresh=0.05, max_missed=0):
         parents = parents_by_det[det_idx]
 
         if len(parents) == 0:
-            # 没有任何 parent -> 交给外层当新 root
+            # There is no parent -> given to the outer layer as a new root
             assignments[det_idx]["is_new"] = True
 
         elif len(parents) == 1:
-            # 一个 parent：延续该轨迹
+            # A parent: continues the trajectory
             tr_id = parents[0]
             assignments[det_idx]["track_id"] = tr_id
             assignments[det_idx]["is_new"] = False
-            assignments[det_idx]["children"] = []  # 单父不放到 children
+            assignments[det_idx]["children"] = []
             matched_track_ids.add(tr_id)
 
         else:
-            # 多个 parent：在外层创建一个新 child，children 记录所有父 ID
+            # Multiple parents-Create a new child in the outer layer, and children keeps track of all the parent ids
             assignments[det_idx]["is_new"] = True
-            assignments[det_idx]["children"] = parents[:]  # 多父
+            assignments[det_idx]["children"] = parents[:]  # multi-parents
             matched_track_ids.update(parents)
 
-    # ===== 根据 matched_track_ids 更新 prev_tracks 的 missed/active =====
+    # Update the missed/active of prev_tracks according to matched_track_ids
     for tr in prev_tracks:
         if not tr.get("active", True):
             continue
@@ -451,8 +445,8 @@ def update_tracks(prev_tracks, det_feats, dist_thresh=0.05, max_missed=0):
 
 def draw_labeled_image(image, instances, det_obj_ids, save_path):
     """
-    在 image 上叠加 mask 和 bbox + index (object_id)，然后保存到 save_path
-    det_obj_ids: 长度 = len(instances)，每个 detection 对应的 object_id
+    Overlay mask and bbox + index (object_id) on the image and save to save_path
+    det_obj_ids: length = len(instances), object_id for each detection
     """
     boxes = instances.pred_boxes.tensor.cpu().numpy()
     masks = None
@@ -464,19 +458,18 @@ def draw_labeled_image(image, instances, det_obj_ids, save_path):
 
     for i, box in enumerate(boxes):
         obj_id = det_obj_ids[i]
-        color = (0, 255, 0)  # 红色
+        color = (0, 255, 0)  # red
 
-        # 叠加 mask
+        # overlay with mask
         if masks is not None:
             m = masks[i].astype(bool)
-            # 只在 mask 区域做颜色融合
             overlay[m] = (overlay[m] * 0.6 + np.array(color, dtype=np.uint8) * 0.4).astype(np.uint8)
 
-        # 画 bbox
+        # bbox
         x1, y1, x2, y2 = map(int, box)
         cv2.rectangle(overlay, (x1, y1), (x2, y2), color, 2)
 
-        # 写 index（object_id）
+        # index（object_id）
         text = str(obj_id)
         cv2.putText(
             overlay,
@@ -489,7 +482,6 @@ def draw_labeled_image(image, instances, det_obj_ids, save_path):
             cv2.LINE_AA,
         )
 
-    # 和原图再做一次融合，让视觉更柔和一点
     alpha = 0.8
     labeled = cv2.addWeighted(overlay, alpha, image, 1 - alpha, 0)
 
@@ -497,13 +489,13 @@ def draw_labeled_image(image, instances, det_obj_ids, save_path):
 
 def collect_frames_by_prefix(input_root, prefix):
     """
-    在 input_root 下，收集所有以 prefix 开头的图像，
-    并根据文件名里的时间字段排序。
+    Under input_root, collect all images that start with prefix,
+    And sort by the time field in the filename.
 
-    例如:
-      prefix = "VID1513_A1_1"
-      文件: VID1513_A1_1_2025y11m19d_08h20m.jpg
-    返回: [(t, fpath, fname), ...]，按 t 升序
+    For example:
+    prefix = "VID1513_A1_1"
+    File: VID1513_A1_1_2025y11m19d_08h20m.jpg
+    Return: [(t, fpath, fname),...] In ascending order of t
     """
     frames = []
 
@@ -513,7 +505,7 @@ def collect_frames_by_prefix(input_root, prefix):
         if fname.startswith("."):
             continue
 
-        # 必须以 prefix_ 开头
+        # must start from prefix_
         if not fname.startswith(prefix + "_"):
             continue
 
@@ -524,34 +516,19 @@ def collect_frames_by_prefix(input_root, prefix):
         fpath = os.path.join(input_root, fname)
         frames.append((t, fpath, fname))
 
-    frames.sort(key=lambda x: x[0])  # 按时间排序
+    frames.sort(key=lambda x: x[0])  # Sort by time
     return frames
 
 
-def encode_mask_to_coco_rle(mask_bool):
-    """
-    mask_bool: [H, W] 的 bool numpy array
-    返回可直接写入 Excel 的 JSON 字符串
-    """
-    mask_u8 = np.asfortranarray(mask_bool.astype(np.uint8))  # COCO RLE 要求 Fortran order
-    rle = mask_utils.encode(mask_u8)  # dict: {'size': [H, W], 'counts': bytes}
-
-    # counts 默认是 bytes，Excel/JSON 不方便存，转成 utf-8 字符串
-    rle["counts"] = rle["counts"].decode("utf-8")
-
-    # 存成 JSON 字符串，后面读回来也方便
-    return json.dumps(rle, ensure_ascii=False)
-
-
-# ===================== 主流程：读图 + 检测 + Tracking + 导出 Excel =====================
+# main: Read graph + detection + Tracking + Export Excel
 
 def run_tracking_for_prefix(input_root, demo, excel_out_path, labeled_out_root, prefix):
     """
-    只对某个指定前缀（例如 VID1513_A1_1）下的图像做 tracking。
+    Do tracking only for images under a given prefix (for example VID1513_A1_1).
     """
     os.makedirs(labeled_out_root, exist_ok=True)
 
-    # 1. 收集该前缀下的所有图像并按时间排序
+    # All images under that prefix are collected and sorted by time
     frames = collect_frames_by_prefix(input_root, prefix)
     if not frames:
         print(f"[WARN] no frames found for prefix = {prefix}")
@@ -560,11 +537,11 @@ def run_tracking_for_prefix(input_root, demo, excel_out_path, labeled_out_root, 
     print(f"Processing prefix = {prefix}, num_frames = {len(frames)}")
 
     next_track_id = 1
-    tracks = []   # 所有轨迹，元素结构: {"id", "feat", "missed", "active"}
+    tracks = []   # element structure: {"id", "feat", "missed", "active"}
 
     all_rows = []
 
-    # 每个 prefix 单独一个子目录放标注图像
+    # Each prefix has a separate subdirectory to record and play the annotated image
     key_labeled_dir = os.path.join(labeled_out_root, prefix)
     os.makedirs(key_labeled_dir, exist_ok=True)
 
@@ -574,25 +551,13 @@ def run_tracking_for_prefix(input_root, demo, excel_out_path, labeled_out_root, 
             print(f"[WARN] failed to read image: {fpath}")
             continue
 
-        # predictions, vis_output, instances = demo.run_on_image(image)
-
-        # if len(instances) == 0:
-        #     print(f"[INFO] no instances in {fname}")
-        #     continue
-        
-        # # ==== 特征（建议是 [cx_norm, cy_norm]）====
-        # det_feats = get_instance_features(instances, image.shape)
-
-        # # ==== 更新 track ====
-        # assignments, tracks = update_tracks(tracks, det_feats, dist_thresh=0.08, max_missed=3)
-        
         predictions, vis_output, instances = demo.run_on_image(image)
 
         if len(instances) == 0:
             print(f"[INFO] no instances in {fname}")
             continue
 
-        # ========= 用 mask 面积过滤小目标 =========
+        # minimize area
         if instances.has("pred_masks"):
             masks = instances.pred_masks.cpu().numpy().astype(bool)  # [N, H, W]
             mask_areas = masks.reshape(masks.shape[0], -1).sum(axis=1)  # [N]
@@ -602,16 +567,11 @@ def run_tracking_for_prefix(input_root, demo, excel_out_path, labeled_out_root, 
                 print(f"[INFO] all instances < 300 pixels in {fname}, skip frame")
                 continue
 
-            # 只保留面积 >= 300 的实例
             instances = instances[keep]
-        # 如果没有 pred_masks，就暂时不按面积筛（也可以改成用 bbox 面积）
-        # ======================================
 
         det_feats = get_instance_features(instances, image.shape)
         assignments, tracks = update_tracks(tracks, det_feats, dist_thresh=0.08, max_missed=3)
 
-        
-        
 
         num_det = len(assignments)
         det_obj_ids = [-1] * num_det
@@ -621,16 +581,16 @@ def run_tracking_for_prefix(input_root, demo, excel_out_path, labeled_out_root, 
             feat = det_feats[det_idx]
             is_new = assign.get("is_new", False)
             track_id = assign.get("track_id", None)
-            parents = assign.get("children", []) or []  # 多父情况才会填
+            parents = assign.get("children", []) or []  # only in multi-parents situation
 
-            # === 旧轨迹延续（单父）===
+            # Continuation of the old trajectory
             if (not is_new) and (track_id is not None):
-                # 这个 detection 继续用父轨迹的 id
+                # This detection continues with the id of the parent trace
                 pid = track_id
                 det_obj_ids[det_idx] = pid
                 det_parents[det_idx] = [pid]
 
-                # 更新该轨迹的特征
+                # Update the features of this trajectory
                 for tr in tracks:
                     if tr["id"] == pid:
                         tr["feat"] = feat
@@ -638,15 +598,15 @@ def run_tracking_for_prefix(input_root, demo, excel_out_path, labeled_out_root, 
                         tr["active"] = True
                         break
 
-            # === 多父合并 -> 新 child，一个子轨迹，多父 parent_ids ===
+            # Multi-parent merge -> new child, one child trace, multi-parent parent_ids
             elif is_new and len(parents) > 0:
                 child_id = next_track_id
                 next_track_id += 1
 
                 det_obj_ids[det_idx] = child_id
-                det_parents[det_idx] = parents[:]   # detection 可以有多个 parent_id
+                det_parents[det_idx] = parents[:]   # detection have multi-parent_id
 
-                # 新 child 进入轨迹列表
+                # new child into trajectory
                 tracks.append({
                     "id": child_id,
                     "feat": feat,
@@ -654,18 +614,17 @@ def run_tracking_for_prefix(input_root, demo, excel_out_path, labeled_out_root, 
                     "active": True,
                 })
 
-                # 这些 parent 可以选择标记为 inactive（看你需求）
                 for tr in tracks:
                     if tr["id"] in parents:
                         tr["active"] = False
 
-            # === 纯新 root（没有任何 parent）===
+            # new root
             else:
                 child_id = next_track_id
                 next_track_id += 1
 
                 det_obj_ids[det_idx] = child_id
-                det_parents[det_idx] = []  # 没有父节点
+                det_parents[det_idx] = []  # without parents
 
                 tracks.append({
                     "id": child_id,
@@ -674,7 +633,7 @@ def run_tracking_for_prefix(input_root, demo, excel_out_path, labeled_out_root, 
                     "active": True,
                 })
 
-        # ====== 写 Excel , 基于 mask 统计大小和位置 ======
+        # Write Excel and count size and position based on mask
         boxes = instances.pred_boxes.tensor.cpu().numpy()  # [N, 4]
 
         masks = None
@@ -684,37 +643,31 @@ def run_tracking_for_prefix(input_root, demo, excel_out_path, labeled_out_root, 
         H, W = image.shape[:2]
 
         for det_idx, obj_id in enumerate(det_obj_ids):
-            parent_ids = det_parents[det_idx]
+            parent_ids = det_parents[det_idx]  # list or []
 
             x1, y1, x2, y2 = boxes[det_idx]
             w = x2 - x1
             h = y2 - y1
 
-            mask_rle = None
-
+            # Calculate area & centroid based on mask
             if masks is not None:
                 m = masks[det_idx]            # [H, W], bool
-                mask_area = int(m.sum())
+                mask_area = int(m.sum())      # number of pixels
 
                 if mask_area > 0:
-                    ys, xs = np.where(m)
+                    ys, xs = np.where(m)      # Notice：y and then x
                     cx = float(xs.mean())
                     cy = float(ys.mean())
-
-                    # 新增：保存 COCO RLE
-                    mask_rle = encode_mask_to_coco_rle(m)
                 else:
+                    # In case the mask is empty, back to the center of the bbox
                     mask_area = 0
                     cx = float((x1 + x2) / 2.0)
                     cy = float((y1 + y2) / 2.0)
-
-                    # 空 mask 也可以存一个空的 RLE，或者直接 None
-                    mask_rle = None
             else:
+                # with out masks
                 mask_area = int(w * h)
                 cx = float((x1 + x2) / 2.0)
                 cy = float((y1 + y2) / 2.0)
-                mask_rle = None
 
             row = {
                 "key": prefix,
@@ -722,8 +675,9 @@ def run_tracking_for_prefix(input_root, demo, excel_out_path, labeled_out_root, 
                 "timestamp": t,
                 "frame_idx": frame_idx,
                 "object_id": obj_id,
-                "parent_ids": ",".join(map(str, parent_ids)) if parent_ids else "",
+                "parent_ids": ",".join(map(str, parent_ids)) if parent_ids else False,
 
+                # bbox info
                 "x1": float(x1),
                 "y1": float(y1),
                 "x2": float(x2),
@@ -731,22 +685,20 @@ def run_tracking_for_prefix(input_root, demo, excel_out_path, labeled_out_root, 
                 "bbox_w": float(w),
                 "bbox_h": float(h),
 
-                "mask_area": mask_area,
-                "mask_cx": cx,
-                "mask_cy": cy,
-                "mask_cx_norm": cx / W,
+                # mask size & location
+                "mask_area": mask_area,        # mask area
+                "mask_cx": cx,                 # centroid x
+                "mask_cy": cy,                 # centroid y
+                "mask_cx_norm": cx / W,        # Normalized coordinates
                 "mask_cy_norm": cy / H,
-
-                # 新增
-                "mask_rle": mask_rle,
             }
             all_rows.append(row)
-            
-        # 画图
+
+        # drawing
         labeled_save_path = os.path.join(key_labeled_dir, fname)
         draw_labeled_image(image, instances, det_obj_ids, labeled_save_path)
 
-    # 3. 导出 Excel
+    # export excel
     if not all_rows:
         print("[WARN] no rows to save.")
         return
@@ -760,13 +712,44 @@ def run_tracking_for_prefix(input_root, demo, excel_out_path, labeled_out_root, 
 
 
 
+# if __name__ == "__main__":
+#     input_folder = "/storage/jinxinLab/wangyimin/Cell_seg/Datasets/CRISPR_validition/VID1495_G3_1/darker"
+#     excel_out = "/storage/jinxinLab/wangyimin/Cell_seg/Datasets/CRISPR_validition/VID1495_G3_1/darker/tracking_result_VID1495_G3_1.xlsx"
+#     labeled_out_root = "/storage/jinxinLab/wangyimin/Cell_seg/Datasets/CRISPR_validition/VID1495_G3_1/darker/output"
+
+#     prefix = "VID1495_G3_1"
+
+#     run_tracking_for_prefix(input_folder, demo, excel_out, labeled_out_root, prefix)
+
+
 if __name__ == "__main__":
-    input_folder = "/storage/jinxinLab/wangyimin/Cell_seg/Datasets/CRISPR_validition/Full_datasets/0135_29validation_round3/darker"
-    excel_out = "/storage/jinxinLab/wangyimin/Cell_seg/Datasets/CRISPR_validition/Partail_datasets/tracking_result_VID1513_A4_2.xlsx"
-    labeled_out_root = "/storage/jinxinLab/wangyimin/Cell_seg/Datasets/CRISPR_validition/Partail_datasets/VID1513_A4_2/output"
+    import argparse
+    import os
 
-    prefix = "VID1495_G5_1"
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--input_folder",
+        type=str,
+        default="/storage/jinxinLab/wangyimin/Cell_seg/Datasets/CRISPR_validition/Selected_images",
+        help="A folder containing a sequence of images"
+    )
+    parser.add_argument(
+        "--labeled_out_root",
+        type=str,
+        default=None,
+        help="Mark the output root directory (default: input_folder/output)"
+    )
+    args = parser.parse_args()
 
-    run_tracking_for_prefix(input_folder, demo, excel_out, labeled_out_root, prefix)
+    input_folder = args.input_folder
+    labeled_out_root = args.labeled_out_root or os.path.join(input_folder, "output")
 
+    prefixes = collect_all_prefixes(input_folder)
+    print(f"[INFO] found {len(prefixes)} prefixes:")
+    for p in prefixes:
+        print("  -", p)
+
+    for prefix in prefixes:
+        excel_out = os.path.join(input_folder, f"tracking_result_{prefix}.xlsx")
+        run_tracking_for_prefix(input_folder, demo, excel_out, labeled_out_root, prefix)
 
