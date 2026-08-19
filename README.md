@@ -3,7 +3,7 @@
 
 
 <p align="center">
-  <strong>Official implementation of “Droplet culture of tumour organoids”</strong>
+  <strong>Official implementation of “Droplet culture of tumor organoids”</strong>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.10-blue" alt="Python">
