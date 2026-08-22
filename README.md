@@ -160,8 +160,8 @@ sh time-series_analysis.sh </code>
 
 <h2>Citation</h2>
 
-<pre><code>&lt;INSERT CITATION AFTER PUBLICATION&gt;</code></pre>
+<!-- <pre><code>&lt;INSERT CITATION AFTER PUBLICATION&gt;</code></pre> -->
 
 <h2>License</h2>
 
-<p>&lt;INSERT LICENSE&gt;</p>
+<!-- <p>&lt;INSERT LICENSE&gt;</p> -->
