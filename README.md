@@ -134,7 +134,7 @@ Droplet-culture/
 
 </pre>
 
-<h4>3. Organoid time course </h4>
+<!-- <h4>3. Organoid time course </h4>
 
 Place the example image in the input path:
 <pre>
@@ -155,7 +155,7 @@ Run directly with the following script:
 <code>cd Organoid-time_course
 sh time-series_analysis.sh </code>
 </pre>
-
+ -->
 
 
 <h2>Citation</h2>
