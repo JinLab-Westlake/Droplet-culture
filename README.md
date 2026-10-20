@@ -163,12 +163,12 @@ sh time-series_analysis.sh </code>
 If you use this code in your research, please cite our bioRxiv preprint:
 
 ```bibtex
-@article{wang2026doanet,
-  title   = {Your paper title},
-  author  = {Wang, Yimin and ...},
+@article{Xia2026,
+  title   = {Droplet-based organoid screens enable high-throughput identification of cancer vulnerabilities},
+  author  = {Ya-nan Xia, Yuting Sun, Yimin Wang and ...},
   journal = {bioRxiv},
   year    = {2026},
-  doi     = {10.1101/XXXXXX}
+  doi     = {https://doi.org/10.64898/2026.10.13.744538}
 }
 
 <h2>License</h2>
