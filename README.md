@@ -22,18 +22,7 @@ The pipeline supports:
 
 </p>
 
-<h2>Citation</h2>
 
-If you use this code in your research, please cite our bioRxiv preprint:
-
-```bibtex
-@article{Xia2026,
-  title   = {Droplet-based organoid screens enable high-throughput identification of cancer vulnerabilities},
-  author  = {Ya-nan Xia, Yuting Sun, Yimin Wang and ...},
-  journal = {bioRxiv},
-  year    = {2026},
-  doi     = {https://doi.org/10.64898/2026.10.13.744538}
-}
 
 
 
@@ -170,4 +159,18 @@ sh time-series_analysis.sh </code>
 </pre>
  -->
 
+
+
+<h2>Citation</h2>
+
+If you use this code in your research, please cite our bioRxiv preprint:
+
+```bibtex
+@article{Xia2026,
+  title   = {Droplet-based organoid screens enable high-throughput identification of cancer vulnerabilities},
+  author  = {Ya-nan Xia, Yuting Sun, Yimin Wang and ...},
+  journal = {bioRxiv},
+  year    = {2026},
+  doi     = {https://doi.org/10.64898/2026.10.13.744538}
+}
 
