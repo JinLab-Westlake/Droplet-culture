@@ -160,7 +160,16 @@ sh time-series_analysis.sh </code>
 
 <h2>Citation</h2>
 
-<-- <pre><code>&lt;doi:https://doi.org/10.64898/2026.10.13.744538&gt;</code></pre> -->
+If you use this code in your research, please cite our bioRxiv preprint:
+
+```bibtex
+@article{wang2026doanet,
+  title   = {Your paper title},
+  author  = {Wang, Yimin and ...},
+  journal = {bioRxiv},
+  year    = {2026},
+  doi     = {10.1101/XXXXXX}
+}
 
 <h2>License</h2>
 
