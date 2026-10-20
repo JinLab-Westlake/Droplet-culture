@@ -171,6 +171,3 @@ If you use this code in your research, please cite our bioRxiv preprint:
   doi     = {https://doi.org/10.64898/2026.10.13.744538}
 }
 
-<h2>License</h2>
-
-<p></p>
