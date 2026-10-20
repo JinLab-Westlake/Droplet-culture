@@ -160,7 +160,7 @@ sh time-series_analysis.sh </code>
 
 <h2>Citation</h2>
 
-<!-- <pre><code>&lt;INSERT CITATION AFTER PUBLICATION&gt;</code></pre> -->
+<-- <pre><code>&lt;doi:https://doi.org/10.64898/2026.10.13.744538&gt;</code></pre> -->
 
 <h2>License</h2>
 
