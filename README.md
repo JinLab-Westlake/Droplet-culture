@@ -173,4 +173,4 @@ If you use this code in your research, please cite our bioRxiv preprint:
 
 <h2>License</h2>
 
-<!-- <p>&lt;INSERT LICENSE&gt;</p> -->
+<p></p>
