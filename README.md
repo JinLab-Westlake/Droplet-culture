@@ -1,7 +1,6 @@
 
-<h2 align="center">Droplet culture</h2>
+<h1 align="center">Droplet culture</h1>
 
-<hr>
 
 
 <p align="center">
