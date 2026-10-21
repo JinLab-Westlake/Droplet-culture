@@ -9,7 +9,9 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.10-blue" alt="Python">
   <img src="https://img.shields.io/badge/PyTorch-2.2.2-orange" alt="PyTorch">
-  <!-- <img src="https://img.shields.io/badge/Paper-Under%20Review-lightgrey" alt="Paper Status"> -->
+  <a href="https://www.biorxiv.org/content/10.64898/2026.10.13.744538v1">
+    <img src="https://img.shields.io/badge/Preprint-bioRxiv-B31B1B" alt="bioRxiv Preprint">
+  </a>
 </p>
 
 
