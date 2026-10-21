@@ -1,4 +1,8 @@
-<h2> Droplet culture </h2>
+
+<h2 align="center">Droplet culture</h2>
+
+<hr>
+
 
 <p align="center">
   <strong>Official implementation of “Droplet-based organoid screens enable high-throughput identification of cancer vulnerabilities”</strong>
