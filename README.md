@@ -1,9 +1,9 @@
-<h1 align="center">Droplet-culture</h1>
+<img width="964" height="547" alt="image" src="https://github.com/user-attachments/assets/c29f813e-571d-4b06-928b-c1fa892cd607" /><h1 align="center">Droplet-culture</h1>
 
 
 
 <p align="center">
-  <strong>Official implementation of “Droplet culture of tumor organoids”</strong>
+  <strong>Official implementation of “Droplet-based organoid screens enable high-throughput identification of cancer vulnerabilities”</strong>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.10-blue" alt="Python">
